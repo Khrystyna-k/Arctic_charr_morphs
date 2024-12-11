@@ -1,0 +1,361 @@
+---
+title: "Untitled"
+author: "Khrystyna"
+date: "2024-05-01"
+output: html_document
+---
+
+
+#PCAngsd All SNPs - best fit K = 2
+```{r }
+#Set up the working directory
+dir_adm <- '~/Desktop/Comp_UU/REF_SalAlp_UK/Admixture/Data_admix'
+
+
+#Load package
+require(ggplot2)
+require(egg)
+require(tidyverse)
+
+#Load files 
+adm_Thin_all_2 <-  read.table(file.path(dir_adm, paste("Thin.admix.2.Q")), header = F)
+adm_Thin_all_3 <-  read.table(file.path(dir_adm, paste("Thin.admix.3.Q")), header = F)
+adm_Thin_all_4 <-  read.table(file.path(dir_adm, paste("Thin.admix.4.Q")), header = F)
+
+#Read bam list with lakes file 
+bams <- read.csv("~/Desktop/Comp_UU/REF_SalAlp_UK/BAM_list/all_bam_pca_lakes.list")
+
+#Bam list
+bams_Thin <- bams[bams$Lake == 'Thingvallavatn', ]
+
+
+#Merge the information above 
+adm_Thin_list_2 <- cbind(adm_Thin_all_2, bams_Thin)
+adm_Thin_list_3 <- cbind(adm_Thin_all_3, bams_Thin)
+adm_Thin_list_4 <- cbind(adm_Thin_all_4, bams_Thin)
+
+
+#Make a matrix
+adm_Thin_2_pivot <- 
+  adm_Thin_list_2 %>% 
+  pivot_longer(cols = c("V1", "V2"),
+               names_to =  "AdmComponents", 
+               values_to = "AdmProportions")
+
+adm_Thin_3_pivot <- 
+  adm_Thin_list_3 %>% 
+  pivot_longer(cols = c("V1", "V2", "V3"),
+               names_to =  "AdmComponents", 
+               values_to = "AdmProportions")
+adm_Thin_4_pivot <- 
+  adm_Thin_list_4 %>% 
+  pivot_longer(cols = c("V1", "V2", "V3", "V4"),
+               names_to =  "AdmComponents", 
+               values_to = "AdmProportions")
+
+```
+
+
+## Including Plots - This test is run to check for the best fit from PCAngsd program
+```{r }
+#Plot admixture
+library(ggthemes)
+
+
+#Q2
+adm_Thin_2_pivot$Morph_order= factor(adm_Thin_2_pivot$Morph_short, 
+                                     levels=c('PL', 'Pi', "LB", 'DB'))
+
+Thin_2 <- ggplot(adm_Thin_2_pivot, 
+                 aes(x = as.factor( SampleID), y =  AdmProportions, fill = factor(AdmComponents))) +
+  geom_col(aes(color = AdmComponents), size = 0.1)+
+  facet_grid(~Morph_order, switch = "x", scales = "free", space = "free") +
+  theme_minimal() + labs(x = "Individuals", subtitle = "Thingvallavatn, K=2", y = "Ancestry") +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_x_discrete(expand = expansion(add = 1)) +
+  theme(
+    text=element_text(size=14),
+    panel.spacing.x = unit(0.1, "lines"),
+    axis.text.x = element_blank(),
+    panel.grid = element_blank()
+  ) +
+  scale_fill_gdocs(guide = FALSE) + xlab(NULL) +
+  scale_fill_manual(values = c("#ef8a62", "#67a9cf",'darkslateblue', 'mediumorchid'), guide = "none") +
+  scale_color_manual(values = c("#ef8a62", "#67a9cf",'darkslateblue', 'mediumorchid'), guide = 'none')
+
+
+#Q3
+adm_Thin_3_pivot$Morph_order= factor(adm_Thin_3_pivot$Morph_short, 
+                                     levels=c('PL', 'Pi', "LB", 'DB'))
+
+Thin_3 <- ggplot(adm_Thin_3_pivot, 
+                 aes(x = as.factor( SampleID), y =  AdmProportions, fill = factor(AdmComponents))) +
+  geom_col(aes(color = AdmComponents), size = 0.1)+
+  facet_grid(~Morph_order, switch = "x", scales = "free", space = "free") +
+  theme_minimal() + labs(x = "Individuals", subtitle = "Thingvallavatn, K=3", y = "Ancestry") +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_x_discrete(expand = expansion(add = 1)) +
+  theme(
+    text=element_text(size=14),
+    panel.spacing.x = unit(0.1, "lines"),
+    axis.text.x = element_blank(),
+    panel.grid = element_blank()
+  ) +
+  scale_fill_gdocs(guide = FALSE) + xlab(NULL) +
+  scale_fill_manual(values = c("#ef8a62", "#67a9cf",'darkslateblue', 'mediumorchid'), guide = "none") +
+  scale_color_manual(values = c("#ef8a62", "#67a9cf",'darkslateblue', 'mediumorchid'), guide = 'none')
+
+
+#Q4
+adm_Thin_4_pivot$Morph_order= factor(adm_Thin_4_pivot$Morph_short, 
+                                     levels=c('PL', 'Pi', "LB", 'DB'))
+
+Thin_4 <- ggplot(adm_Thin_4_pivot, 
+                 aes(x = as.factor( SampleID), y =  AdmProportions, fill = factor(AdmComponents))) +
+  geom_col(aes(color = AdmComponents), size = 0.1)+
+  facet_grid(~Morph_order, switch = "x", scales = "free", space = "free") +
+  theme_minimal() + labs(x = "Individuals", subtitle = "Thingvallavatn, K=4", y = "Ancestry") +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_x_discrete(expand = expansion(add = 1)) +
+  theme(
+    text=element_text(size=14),
+    panel.spacing.x = unit(0.1, "lines"),
+    axis.text.x = element_blank(),
+    panel.grid = element_blank()
+  ) +
+  scale_fill_gdocs(guide = FALSE) + xlab(NULL) +
+  scale_fill_manual(values = c("#ef8a62", "#67a9cf",'darkslateblue', 'mediumorchid'), guide = "none") +
+  scale_color_manual(values = c("#ef8a62", "#67a9cf",'darkslateblue', 'mediumorchid'), guide = 'none')
+
+all <- ggarrange(Thin_2, Thin_3, Thin_4, ncol=1)
+
+#ggsave('~/Desktop/Comp_UU/REF_SalAlp_UK/Admixture/Output/Admix_Thin_2_4_pcangsd.pdf', all, width = 8, height = 9, dpi = 300)
+
+```
+
+
+
+
+#Subsampled data for N sites 1092387 after filetring 586838 generated with NGSadmix
+```{r cars}
+#Set up the working directory
+dir_adm <- '~/Desktop/Comp_UU/REF_SalAlp_UK/Admixture/Subsampled'
+
+
+#Load package
+require(ggplot2)
+require(egg)
+require(tidyverse)
+
+#Load files 
+adm_Thin_all_2 <-  read.table(file.path(dir_adm, "Thin_subs_ngxadmix_2.qopt"), header = F)
+adm_Thin_all_3 <-  read.table(file.path(dir_adm,"Thin_subs_ngxadmix_3.qopt"), header = F)
+adm_Thin_all_4 <-  read.table(file.path(dir_adm, "Thin_subs_ngxadmix_4.qopt"), header = F)
+
+
+#Read bam list with lakes file 
+bams <- read.csv("~/Desktop/Comp_UU/REF_SalAlp_UK/BAM_list/all_bam_pca_lakes.list")
+
+#Bam list
+bams_Thin <- bams[bams$Lake == 'Thingvallavatn', ]
+
+
+#Merge the information above 
+adm_Thin_list_2 <- cbind(adm_Thin_all_2, bams_Thin)
+adm_Thin_list_3 <- cbind(adm_Thin_all_3, bams_Thin)
+adm_Thin_list_4 <- cbind(adm_Thin_all_4, bams_Thin)
+
+
+#Make a matrix
+adm_Thin_2_pivot <- 
+  adm_Thin_list_2 %>% 
+  pivot_longer(cols = c("V1", "V2"),
+               names_to =  "AdmComponents", 
+               values_to = "AdmProportions")
+
+adm_Thin_3_pivot <- 
+  adm_Thin_list_3 %>% 
+  pivot_longer(cols = c("V1", "V2", "V3"),
+               names_to =  "AdmComponents", 
+               values_to = "AdmProportions")
+
+adm_Thin_4_pivot <- 
+  adm_Thin_list_4 %>% 
+  pivot_longer(cols = c("V1", "V2", "V3", "V4"),
+               names_to =  "AdmComponents", 
+               values_to = "AdmProportions")
+#Plot admixture-----------------------------------------------------------------
+library(ggthemes)
+
+
+#Q2
+adm_Thin_2_pivot$Morph_order= factor(adm_Thin_2_pivot$Morph_short, 
+                                     levels=c('PL', 'Pi', "LB", 'SB'))
+
+Thin_2 <- ggplot(adm_Thin_2_pivot, 
+                 aes(x = as.factor( SampleID), y =  AdmProportions, fill = factor(AdmComponents))) +
+  geom_col(aes(color = AdmComponents), size = 0.1)+
+  facet_grid(~Morph_order, switch = "x", scales = "free", space = "free") +
+  theme_minimal() + 
+  labs(x = "Individuals", subtitle = "K=2", y = "Ancestry \n", title = ("a")) +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_x_discrete(expand = expansion(add = 1)) +
+  theme(
+    text=element_text(size=14),
+    panel.spacing.x = unit(0.1, "lines"),
+    axis.text.x = element_blank(),
+    panel.grid = element_blank(),
+    plot.title = element_text(face = "bold", family = "Times"),
+    axis.title = element_text(family = "Times")
+  ) +
+  scale_fill_gdocs(guide = FALSE) + xlab(NULL) +
+  scale_fill_manual(values = c("#ef8a62", "#67a9cf",'darkslateblue', 'mediumorchid'), guide = "none") +
+  scale_color_manual(values = c("#ef8a62", "#67a9cf",'darkslateblue', 'mediumorchid'), guide = 'none')
+
+#Q3
+adm_Thin_3_pivot$Morph_order= factor(adm_Thin_3_pivot$Morph_short, 
+                                     levels=c('PL', 'Pi', "LB", 'SB'))
+
+Thin_3 <- ggplot(adm_Thin_3_pivot, 
+                 aes(x = as.factor( SampleID), y =  AdmProportions, fill = factor(AdmComponents))) +
+  geom_col(aes(color = AdmComponents), size = 0.1)+
+  facet_grid(~Morph_order, switch = "x", scales = "free", space = "free") +
+  theme_minimal() + labs(x = "Individuals", subtitle = "K=3", y = "Ancestry \n") +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_x_discrete(expand = expansion(add = 1)) +
+  theme(
+    text=element_text(size=14),
+    panel.spacing.x = unit(0.1, "lines"),
+    axis.text.x = element_blank(),
+    panel.grid = element_blank(),
+    axis.title = element_text(family = "Times")
+  ) +
+  scale_fill_gdocs(guide = FALSE) + xlab(NULL) +
+  scale_fill_manual(values = c("#ef8a62", "#67a9cf",'darkslateblue', 'mediumorchid'), guide = "none") +
+  scale_color_manual(values = c("#ef8a62", "#67a9cf",'darkslateblue', 'mediumorchid'), guide = 'none')
+
+
+adm_Thin_4_pivot$Morph_order= factor(adm_Thin_4_pivot$Morph_short, 
+                                     levels=c('PL', 'Pi', "LB", 'SB'))
+
+Thin_4 <- ggplot(adm_Thin_4_pivot, 
+                 aes(x = as.factor( SampleID), y =  AdmProportions, fill = factor(AdmComponents))) +
+  geom_col(aes(color = AdmComponents), size = 0.1)+
+  facet_grid(~Morph_order, switch = "x", scales = "free", space = "free") +
+  theme_minimal() + labs(x = "Individuals", subtitle = "K=4", y = "Ancestry \n") +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_x_discrete(expand = expansion(add = 1)) +
+  theme(
+    text=element_text(size=14),
+    panel.spacing.x = unit(0.1, "lines"),
+    axis.text.x = element_blank(),
+    panel.grid = element_blank(),
+    axis.title = element_text(family = "Times")
+  ) +
+  scale_fill_gdocs(guide = FALSE) + xlab(NULL) +
+  scale_fill_manual(values = c('mediumorchid', "#67a9cf", "#ef8a62", 'darkslateblue'), guide = "none") +
+  scale_color_manual(values = c( 'mediumorchid', "#67a9cf", "#ef8a62", 'darkslateblue'), guide = 'none')+   
+  theme(axis.title = element_text(family = "Times"))
+
+```
+
+
+#Add -log likelihood for the subsampled data
+```{r }
+dir_adm <- '~/Desktop/Comp_UU/REF_SalAlp_UK/Admixture/Subsampled'
+all_thin_k <- read.csv(file.path(dir_adm, "Errors_ngsadmix_Thin.csv"), header = TRUE)
+all_thin_k$K <- sub(".*_(\\d+)\\.log$", "\\1", all_thin_k$file_name)
+all_thin_k$Log.likelihood <- gsub("like=", "", all_thin_k$Log.likelihood )
+all_thin_k$Log.likelihood <- round(as.numeric(all_thin_k$Log.likelihood ),0 )
+
+
+log_lik <- 
+all_thin_k %>%
+    ggplot(aes(x = factor(K, levels = c("1", "2", "3", "4", "5", "6",
+                           "7", "8", "9", "10") ), y = (Log.likelihood), group = 1)) +
+  geom_point(shape =23, color = "darkblue") +
+  geom_line( color = "darkblue") +
+  theme_classic(base_size = 13)+
+  scale_y_continuous(breaks = seq(-59156935, -50700164, by = 900000)
+ ) +
+  #scale_y_continuous(labels = scales::scientific)+
+  labs(y = "-Log-likelihood", x = "Number of clusters (K)", title = "b")+
+   theme(plot.title = element_text(face = "bold", family = "Times"),
+        axis.title = element_text(family = "Times"))
+
+
+#Arrange all plots together
+all <- ggarrange(Thin_2, Thin_3, Thin_4, log_lik, nrow = 4, ncol=1)
+
+ggsave('~/Desktop/Comp_UU/REF_SalAlp_UK/Admixture/Output/Admix_Thin_2_4_ngsAdmix.pdf', all, width = 8, height = 9, dpi = 300)
+```
+
+
+
+#PCAngsd Subsampled SNPs best fit k = 2
+```{r }
+#Set up the working directory
+dir_adm <- '~/Desktop/Comp_UU/REF_SalAlp_UK/Admixture/Subsampled'
+
+
+#Load package
+require(ggplot2)
+require(egg)
+require(tidyverse)
+
+#Load files with best suggested k = 2
+adm_Thin_all_2 <-  read.table(file.path(dir_adm, "Thin_subsampled.admix.2.Q"), header = F)
+
+
+#Read bam list with lakes file 
+bams <- read.csv("~/Desktop/Comp_UU/REF_SalAlp_UK/BAM_list/all_bam_pca_lakes.list")
+
+#Bam list
+bams_Thin <- bams[bams$Lake == 'Thingvallavatn', ]
+
+
+#Merge the information above 
+adm_Thin_list_2 <- cbind(adm_Thin_all_2, bams_Thin)
+
+
+
+#Make a matrix
+adm_Thin_2_pivot <- 
+  adm_Thin_list_2 %>% 
+  pivot_longer(cols = c("V1", "V2"),
+               names_to =  "AdmComponents", 
+               values_to = "AdmProportions")
+
+
+#Plot admixture-----------------------------------------------------------------
+library(ggthemes)
+
+
+#Q2
+adm_Thin_2_pivot$Morph_order= factor(adm_Thin_2_pivot$Morph_short, 
+                                     levels=c('PL', 'Pi', "LB", 'SB'))
+
+Thin_2 <- ggplot(adm_Thin_2_pivot, 
+                 aes(x = as.factor( SampleID), y =  AdmProportions, fill = factor(AdmComponents))) +
+  geom_col(aes(color = AdmComponents), size = 0.1)+
+  facet_grid(~Morph_order, switch = "x", scales = "free", space = "free") +
+  theme_minimal() + 
+  labs(x = "Individuals", subtitle = "K=2", y = "Ancestry \n", title = ("a")) +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_x_discrete(expand = expansion(add = 1)) +
+  theme(
+    text=element_text(size=14),
+    panel.spacing.x = unit(0.1, "lines"),
+    axis.text.x = element_blank(),
+    panel.grid = element_blank(),
+    plot.title = element_text(face = "bold", family = "Times"),
+    axis.title = element_text(family = "Times")
+  ) +
+  scale_fill_gdocs(guide = FALSE) + xlab(NULL) +
+  scale_fill_manual(values = c("#ef8a62", "#67a9cf",'darkslateblue', 'mediumorchid'), guide = "none") +
+  scale_color_manual(values = c("#ef8a62", "#67a9cf",'darkslateblue', 'mediumorchid'), guide = 'none')
+
+#Arrange all plots together
+ggsave('~/Desktop/Comp_UU/REF_SalAlp_UK/Admixture/Output/Admix_Thin_k2_pcangsd.pdf', Thin_2, width = 8, height = 9, dpi = 300)
+```
+

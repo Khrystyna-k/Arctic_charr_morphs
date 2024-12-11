@@ -1,0 +1,176 @@
+---
+title: "Untitled"
+author: "Khrystyna"
+date: "2024-08-13"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+#Libs
+library(tidyverse)
+library(patchwork)
+library(zoo)
+library(data.table)
+library(dplyr)
+library(scales)
+library(ggplot2)
+options(scipen = 999)
+library(reshape2)
+
+```
+
+
+
+#Fst
+```{r }
+
+#Directory
+dir <- '~/Desktop/Comp_UU/REF_SalAlp_UK/FST/FST_POP_FOLDER'
+
+#Load data 
+files <- list.files(dir)
+
+#Select files 
+desired_files <- grep("10kbstep.fst_win$", files, value = TRUE)
+col_names <- c('chr', 'midPos','Nsites', 'Fst')
+
+# Read the desired files
+fst_list <- list()
+
+for(file in desired_files) {
+  # Try to read the file content, handle any errors gracefully
+  file_content <- try(read.table(file.path(dir, file), header = TRUE, sep = "\t", stringsAsFactors = FALSE), silent = TRUE)
+  
+  # Check if the read operation resulted in an error or if the file is empty
+  if (inherits(file_content, "try-error") || nrow(file_content) == 0) {
+    next  # Skip to the next file in the loop
+  }
+  
+  #file_content <- read.table(file.path(dir, file), header = F)[,-1]
+  colnames(file_content) <- col_names
+  
+  #Names of pops
+  pops <- gsub("maf_|\\.list.maf_|\\.list.|[1-9]|\\_20kb_10kbstep.fst_win", "", file)
+  pops <- gsub("0", "", pops)
+  
+  file_content$Populations <- pops
+
+  # Process the file content as needed
+  fst_list[[file]] <- file_content
+}
+
+#Combine and filter for > 10 sites
+fst_combined <- do.call(rbind, fst_list)
+fst_combined_filter <- fst_combined[fst_combined$Nsites >= 10,]
+
+#Check if all chromosomes are present
+fst_stats <- fst_combined_filter %>%
+                group_by(Populations) %>%
+                summarise(n_chr = n_distinct(chr),
+                          n_sites = sum(Nsites),
+                          mean_Fst = round(mean(Fst),2 ),
+                          sd_fst = sd(Fst)
+)
+
+
+#Check if all chromosomes are present
+fst_stats_lake <- fst_combined_filter[fst_combined_filter$Populations == 'pop_Thinpop_Sir', ] %>%
+                group_by(chr) %>%
+                summarise(
+                          n_sites = sum(Nsites),
+                          mean_Fst = round(mean(Fst),2 ),
+                          sd_fst = sd(Fst)
+)
+
+
+
+```
+
+
+
+#Plot Fst stats
+```{r}
+
+fst_stats$Pop2 <- fst_stats$Populations
+fst_stats$Pop2 <- sub(".*_","", fst_stats$Pop2)
+fst_stats$Populations <- sub("^.*_(.*)_.*$", "\\1", fst_stats$Populations)
+
+# Create a named vector for the replacements
+fst_stats$Populations <- case_when(startsWith(fst_stats$Populations, "Myv") ~ "Mývatn",
+                                   startsWith(fst_stats$Populations,"Van")~ "Vangsvatnet",
+                                   startsWith(fst_stats$Populations,"Thin")~ "Thingvallavatn",
+                                   startsWith(fst_stats$Populations,"Sir")~ "Sirdalsvatnet",
+                                   )
+fst_stats$Pop2 <- case_when(startsWith(fst_stats$Pop2, "Myv") ~ "Mývatn",
+                                   startsWith(fst_stats$Pop2,"Van")~ "Vangsvatnet",
+                                   startsWith(fst_stats$Pop2,"Thin")~ "Thingvallavatn",
+                                   startsWith(fst_stats$Pop2,"Sir")~ "Sirdalsvatnet",
+                                   )
+
+```
+
+
+
+# Add reverse combinations (symmetry) so that pop1 -> pop2 and pop2 -> pop1 are both represented
+```{r}
+fst_data_dir <- data.frame(
+  pop2 = fst_stats$Populations,
+  pop1 = fst_stats$Pop2,
+  Fst = fst_stats$mean_Fst
+)
+
+fst_data_rev <- data.frame(
+  pop1 = fst_stats$Populations,
+  pop2 = fst_stats$Pop2,
+  Fst = fst_stats$mean_Fst
+)
+
+# Combine original and reverse data
+fst_full <- rbind(fst_data_dir, fst_data_rev)
+
+# Add diagonal values (Fst between the same population is 0)
+unique_pops <- unique(c(fst_full$pop1, fst_full$pop2))
+diag_data <- data.frame(
+  pop1 = unique_pops,
+  pop2 = unique_pops,
+  Fst = 0
+)
+
+# Combine with diagonal data
+fst_full <- rbind(fst_full, diag_data)
+
+# Create a symmetric matrix
+fst_matrix <- matrix(0, nrow = length(unique_pops), ncol = length(unique_pops),
+                     dimnames = list(unique_pops, unique_pops))
+
+# Fill the matrix with Fst values
+for (i in 1:nrow(fst_full)) {
+  fst_matrix[fst_full$pop1[i], fst_full$pop2[i]] <- fst_full$Fst[i]
+}
+
+
+#Order lakes 
+desired_order <-  c("Mývatn", "Thingvallavatn", "Sirdalsvatnet", "Vangsvatnet")
+fst_matrix_ordered <- fst_matrix[desired_order, desired_order, drop = FALSE]
+
+#Prepare matrix to plot heatmap 
+library(corrplot)
+bright_colors <- colorRampPalette(c("blue", "orange"))(100)
+
+pdf("~/Desktop/Comp_UU/REF_SalAlp_UK/Fst_plot.pdf", width = 6, height = 5)
+corrplot(fst_matrix_ordered, 
+         method = 'number', 
+         type = 'lower', 
+         tl.col = "black",  
+         tl.cex = 1.2,        # Adjust the size of the labels
+         col = bright_colors, 
+         diag = FALSE, 
+         number.cex = 1.2,    # Increase the size of the numbers in the plot
+         legend.cex = 1.5)    # Increase the size of the legend text
+dev.off()
+
+
+```
+
+

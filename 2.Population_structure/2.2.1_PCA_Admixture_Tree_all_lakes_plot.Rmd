@@ -1,0 +1,677 @@
+
+#Set up the working directory
+```{r setup, include=FALSE}
+dir_pca <- '~/Desktop/Comp_UU/REF_SalAlp_UK/Admixture/Subsampled'
+
+
+require(tidyverse)
+library(psych)
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(RColorBrewer)
+library(egg)
+require(ggforce)
+
+#Set uo color pannel
+lake_colors <- c("Mývatn" = "red",
+                 "Thingvallavatn" = 'darkorchid','Sirdalsvatnet' = "darkgreen",
+                 'Vangsvatnet' = "steelblue")
+```
+
+
+```{r}
+#Read bam list with lakes file 
+bams <- read.csv("~/Desktop/Comp_UU/REF_SalAlp_UK/BAM_list/all_bam_pca_lakes.list")
+
+  
+#Add pcangsd matrix
+all_Morph_shorts <- as.matrix(read.table(file.path(dir_pca, "All_lakes_subsampled_k5.cov"), header = F))
+
+Myv_rm_list <- c('Myv-12', 'MyvK-20')
+
+```
+
+
+
+#PCA subsampled
+```{r}
+data <- all_Morph_shorts
+bamList <- bams
+
+
+#Run this uniquly
+eigen.data <- eigen(data)
+
+
+#We can then extract the eigenvectors from the pca object and format them into a dataframe for plotting, e.g. using ggplot().
+eigenvectors <- as.data.frame(eigen.data$vectors)
+eigenvalues <-  eigen.data$values
+
+eigenvectors$Sample <- bamList$SampleID
+eigenvectors$Morph_short <- bamList$Morph_short
+eigenvectors$Lake <-  bamList$Lake
+
+eigenvectors <- eigenvectors[!eigenvectors$Sample %in% Myv_rm_list, ]
+
+
+
+#Get vars
+pca.eigenval.sum = sum(eigen.data$values)
+varPC1 <- (eigen.data$values[1]/pca.eigenval.sum)*100 #Variance explained by PC1
+varPC2 <- (eigen.data$values[2]/pca.eigenval.sum)*100 #Variance explained by PC2
+varPC3 <- (eigen.data$values[3]/pca.eigenval.sum)*100 #Variance explained by PC3
+varPC4 <- (eigen.data$values[4]/pca.eigenval.sum)*100 #Variance explained by PC4
+
+
+all <- ggplot(data = eigenvectors, 
+              aes(x = V1, y = V2)) +
+  geom_point(alpha = 0.8, size = 3, shape = 21, color = 'black', aes(fill = Lake) ) +
+  xlab(paste0("PC1: ", round(varPC1,1),"% variance")) +
+  ylab(paste0("PC2: ", round(varPC2,1),"% variance")) +
+  theme_bw() +
+  theme(text=element_text(size=16)) +
+  labs(fill = 'Lake')+
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        legend.position = "top") +
+  scale_fill_brewer(palette = "Set1")+
+  geom_vline(xintercept = 0, linetype = "dotted")+
+  geom_hline(yintercept = 0, linetype = "dotted")+
+  xlim(-0.10, 0.10)+
+  scale_y_continuous(labels = label_number(accuracy = 0.01), limits = c(-0.22, 0.22))
+
+#Use PC1 and PC3
+all_pc1_3 <- ggplot(data = eigenvectors, 
+              aes(x = V1, y = V3)) +
+  geom_point(alpha = 0.8, size = 3, shape = 21, color = 'black', aes(fill = Lake) ) +
+  xlab(paste0("PC1: ", round(varPC1,1),"% variance")) +
+  ylab(paste0("PC3: ", round(varPC3,1),"% variance")) +
+  theme_bw() +
+  theme(text=element_text(size=16)) +
+  labs(fill = 'Lake')+
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()
+        )+
+  scale_fill_brewer(palette = "Set1")+
+  geom_vline(xintercept = 0, linetype = "dotted")+
+  geom_hline(yintercept = 0, linetype = "dotted")+
+  xlim(-0.10, 0.10)+
+  ylim(-0.12, 0.12)
+
+
+```
+
+#Plot % of variances explained
+```{r}
+#Get vars
+pca.eigenval.sum = sum(eigen.data$values)
+
+all_vars <- as.data.frame(eigen.data$values/pca.eigenval.sum)
+all_vars$Variance_perc <- all_vars[,1]*100
+all_vars$Variance_perc <-as.numeric(round(all_vars$Variance_perc,1))
+all_vars$Vector <- seq(1, length(all_vars$Variance_perc))
+
+#Plot
+vars <- ggplot(all_vars[1:10,], aes(x = factor(Vector), y = Variance_perc)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  theme_classic(base_size = 13) +
+  labs(x = "PCs", y = "% variance", title = "c")+
+  theme(plot.title = element_text(face = "bold"))
+  
+
+
+# Create the plot grid with a common legend
+library(cowplot)
+prow <- plot_grid(
+  all + theme(legend.position = "none"),          # Plot 1 without legend
+  all_pc1_3 + theme(legend.position = "none"),  # Plot 2 with bottom legend
+  vars,                                          # Additional plot
+  align = 'vh',                                  # Vertical and horizontal alignment
+  labels = c("a", "b", "c"),                     # Labels for each plot
+  hjust = -1,                                    # Horizontal adjustment for labels
+  nrow = 1,                                      # Arrange in a single row
+  rel_heights = c(1, 1, 1),                      # Adjust heights of plots (same height)
+  axis = "tb",  
+  label_size = 18,
+  vjust =1
+)
+
+# Now add the legend separately and align it
+## Function to extract legend
+g_legend <- function(a.gplot){ 
+    tmp <- ggplot_gtable(ggplot_build(a.gplot)) 
+    leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box") 
+    legend <- tmp$grobs[[leg]] 
+    legend
+} 
+
+legend <- g_legend(all)
+
+# Combine the grid of plots with the legend below it
+final_plot <- plot_grid(prow, legend, ncol = 1, rel_heights = c(1, 0.1))
+
+#Save
+ggsave('/Users/rabu0002/Desktop/Comp_UU/REF_SalAlp_UK/Admixture/PCA_all_combined_sub.png', final_plot, width = 10, height = 3.5, dpi = 300)
+
+
+```
+
+
+
+#Admixture wit NGSAdmix
+```{r}
+#Set up the working directory
+dir_adm <-('~/Desktop/Comp_UU/REF_SalAlp_UK/Admixture/Subsampled')
+
+#Load package
+require(ggplot2)
+require(egg)
+require(tidyverse)
+library(readxl)
+
+#Add admixture files 
+q_2 <- read.table(file.path(dir_adm, paste('All_lakes_subs_ngxadmix_2.qopt')), header = F)
+q_3 <- read.table(file.path(dir_adm, paste('All_lakes_subs_ngxadmix_3.qopt')), header = F)
+q_4 <- read.table(file.path(dir_adm, paste('All_lakes_subs_ngxadmix_4.qopt')), header = F)
+q_5 <- read.table(file.path(dir_adm, paste('All_lakes_subs_ngxadmix_5.qopt')), header = F)
+q_6 <- read.table(file.path(dir_adm, paste('All_lakes_subs_ngxadmix_6.qopt')), header = F)
+
+
+#Read bam list with lakes file 
+bams <- read.csv("~/Desktop/Comp_UU/REF_SalAlp_UK/BAM_list/all_bam_lakes.list")
+
+#remove 5 extra
+
+#Merge the information above 
+q2_list <- cbind(q_2, bams)
+q3_list <- cbind(q_3, bams)
+q4_list <- cbind(q_4, bams)
+q5_list <- cbind(q_5, bams)
+q6_list <- cbind(q_6, bams)
+
+#remove SampleID 'Myv-12' and 'MyvK-20'
+q2_list <- q2_list[!q2_list$SampleID %in% c('Myv-12', 'MyvK-20'),]
+q3_list <- q3_list[!q3_list$SampleID %in% c('Myv-12', 'MyvK-20'),]
+q4_list <- q4_list[!q4_list$SampleID %in% c('Myv-12', 'MyvK-20'),]
+q5_list <- q5_list[!q5_list$SampleID %in% c('Myv-12', 'MyvK-20'),]
+q6_list <- q6_list[!q6_list$SampleID %in% c('Myv-12', 'MyvK-20'),]
+
+#Make a matrix
+q2_list_pivot <- q2_list %>% pivot_longer(cols = c("V1", "V2"),
+                                          names_to =  "AdmComponents", 
+                                          values_to = "AdmProportions")
+
+q3_list_pivot <- q3_list %>% pivot_longer(cols = c("V1", "V2", 'V3'),
+                                          names_to =  "AdmComponents", 
+                                          values_to = "AdmProportions")
+
+
+q4_list_pivot <- q4_list %>% pivot_longer(cols = c("V1", "V2", 'V3', "V4"),
+                                          names_to =  "AdmComponents", 
+                                          values_to = "AdmProportions")
+q5_list_pivot <- q5_list %>% pivot_longer(cols = c("V1", "V2", 'V3', "V4", 'V5'),
+                                          names_to =  "AdmComponents", 
+                                          values_to = "AdmProportions")
+q6_list_pivot <- q6_list %>% pivot_longer(cols = c("V1", "V2", 'V3', "V4", 'V5', 'V6'),
+                                          names_to =  "AdmComponents", 
+                                          values_to = "AdmProportions")
+#Plot admixture
+#Prepare for ggplot admix
+
+q2_list_pivot$Lake_order= factor(q2_list_pivot$Lake, 
+                                 levels=c('Mývatn','Thingvallavatn','Sirdalsvatnet','Vangsvatnet'))
+q3_list_pivot$Lake_order= factor(q3_list_pivot$Lake, 
+                                 levels=c('Mývatn', 'Thingvallavatn','Sirdalsvatnet','Vangsvatnet'))
+
+q4_list_pivot$Lake_order= factor(q4_list_pivot$Lake, 
+                                 levels=c('Mývatn','Thingvallavatn','Sirdalsvatnet','Vangsvatnet'))
+q5_list_pivot$Lake_order= factor(q5_list_pivot$Lake, 
+                                 levels=c('Mývatn','Thingvallavatn','Sirdalsvatnet','Vangsvatnet'))
+q6_list_pivot$Lake_order= factor(q6_list_pivot$Lake, 
+                                 levels=c('Mývatn', 'Thingvallavatn','Sirdalsvatnet','Vangsvatnet'))
+
+
+#Plot in ggplot
+library(ggthemes)
+
+#Set colors
+# Define consistent color mapping for lakes
+AdmComponents_colors <- c('V1' = "#ef8a62", 'V2' = "#67a9cf",
+                 'V3' = 'darkslateblue', 'V4' = 'mediumorchid', "V5" = 'brown3',  
+                 "V6" = 'darkgoldenrod1')
+
+#Plot
+k2_p <- ggplot(q2_list_pivot, 
+       aes(x = as.factor( SampleID), y =  AdmProportions, fill = factor(AdmComponents))) +
+       geom_col(aes(color = AdmComponents), size = 0.1)+
+  facet_grid(~Lake_order, switch = "x", scales = "free", space = "free") +
+  theme_minimal() + labs(x = "Individuals", title = "K=2", y = "Ancestry \n") +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_x_discrete(expand = expansion(add = 1)) +
+  theme(
+    panel.spacing.x = unit(0.1, "lines"),
+    axis.text.x = element_blank(),
+    panel.grid = element_blank(),
+    strip.text = element_blank()
+    
+  ) +
+  scale_fill_gdocs(guide = FALSE) + xlab(NULL) +
+  scale_fill_manual(values = c('V1' = "#ef8a62", 'V2' = "#67a9cf",
+                               'V3' = 'darkslateblue', 'V4' = 'mediumorchid', "V5" = 'brown3',  
+                               "V6" = 'darkgoldenrod1'), guide = "none") +
+  scale_color_manual(values = c('V1' = "#ef8a62", 'V2' = "#67a9cf",
+                                'V3' = 'darkslateblue', 'V4' = 'mediumorchid', "V5" = 'brown3',  
+                                "V6" = 'darkgoldenrod1'), guide = 'none')
+
+k3_p <- ggplot(q3_list_pivot, 
+               aes(x = as.factor( SampleID), y =  AdmProportions, fill = factor(AdmComponents))) +
+  geom_col(aes(color = AdmComponents), size = 0.1)+
+  facet_grid(~Lake_order, switch = "x", scales = "free", space = "free") +
+  theme_minimal() + labs(x = "Individuals", title = "K=3", y = "Ancestry \n") +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_x_discrete(expand = expansion(add = 1)) +
+  theme(
+    panel.spacing.x = unit(0.1, "lines"),
+    axis.text.x = element_blank(),
+    panel.grid = element_blank(),
+    strip.text = element_blank()
+  ) +
+  scale_fill_gdocs(guide = FALSE) + xlab(NULL) +
+  scale_fill_manual(values = c('V2' = "#ef8a62", 'V3' = "#67a9cf",
+                               'V1' = 'darkslateblue', 'V4' = 'mediumorchid', "V5" = 'brown3',  
+                               "V6" = 'darkgoldenrod1'), guide = "none") +
+  scale_color_manual(values = c('V2' = "#ef8a62", 'V3' = "#67a9cf",
+                                'V1' = 'darkslateblue', 'V4' = 'mediumorchid', "V5" = 'brown3',  
+                                "V6" = 'darkgoldenrod1'), guide = 'none')
+
+k4_p <- ggplot(q4_list_pivot, 
+               aes(x = as.factor( SampleID), y =  AdmProportions, fill = factor(AdmComponents))) +
+  geom_col(aes(color = AdmComponents), size = 0.1)+
+  facet_grid(~Lake_order, switch = "x", scales = "free", space = "free") +
+  theme_minimal() + labs(x = "Individuals", title = "K=4", y = "Ancestry \n") +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_x_discrete(expand = expansion(add = 1)) +
+  theme(
+    panel.spacing.x = unit(0.1, "lines"),
+    axis.text.x = element_blank(),
+    panel.grid = element_blank(),
+    strip.text = element_blank()
+  ) +
+  scale_fill_gdocs(guide = FALSE) + xlab(NULL) +
+  scale_fill_manual(values = c('V3' = "#ef8a62", 'V2' = "#67a9cf",
+                               'V1' = 'darkslateblue', 'V4' = 'mediumorchid', "V5" = 'brown3',  
+                               "V6" = 'darkgoldenrod1'), guide = "none") +
+  scale_color_manual(values = c('V3' = "#ef8a62", 'V2' = "#67a9cf",
+                                'V1' = 'darkslateblue', 'V4' = 'mediumorchid', "V5" = 'brown3',  
+                                "V6" = 'darkgoldenrod1'), guide = 'none')
+
+
+k5_p <- ggplot(q5_list_pivot, 
+               aes(x = as.factor( SampleID), y =  AdmProportions, fill = factor(AdmComponents))) +
+  geom_col(aes(color = AdmComponents), size = 0.1)+
+  facet_grid(~Lake_order, switch = "x", scales = "free", space = "free") +
+  theme_minimal() + labs(x = "Individuals", title = "K=5", y = "Ancestry \n") +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_x_discrete(expand = expansion(add = 1)) +
+  theme(
+    panel.spacing.x = unit(0.1, "lines"),
+    axis.text.x = element_blank(),
+    panel.grid = element_blank(),
+    strip.text = element_text(
+      size = 13)
+  ) +
+  scale_fill_gdocs(guide = FALSE) + xlab(NULL) +
+  scale_fill_manual(values = c('V2' = "#ef8a62", 'V3' = "#67a9cf",
+                               'V4' = 'darkslateblue', 'V5' = 'mediumorchid', "V1" = 'brown3',  
+                               "V6" = 'darkgoldenrod1'), guide = "none") +
+  scale_color_manual(values = c('V2' = "#ef8a62", 'V3' = "#67a9cf",
+                                'V4' = 'darkslateblue', 'V5' = 'mediumorchid', "V1" = 'brown3',  
+                                "V6" = 'darkgoldenrod1'), guide = 'none')
+
+
+k6_p <- ggplot(q6_list_pivot, 
+               aes(x = as.factor( SampleID), y =  AdmProportions, fill = factor(AdmComponents))) +
+  geom_col(aes(color = AdmComponents), size = 0.1)+
+  facet_grid(~Lake_order, switch = "x", scales = "free", space = "free") +
+  theme_minimal() + labs(x = "Individuals", title = "K=6", y = "Ancestry \n") +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_x_discrete(expand = expansion(add = 1)) +
+  theme(
+    panel.spacing.x = unit(0.1, "lines"),
+    axis.text.x = element_blank(),
+    panel.grid = element_blank(),
+    strip.text = element_text(
+      size = 13)
+  ) +
+  scale_fill_gdocs(guide = FALSE) + xlab(NULL) +
+  scale_fill_manual(values =c('V1' = "#ef8a62", 'V6' = "#67a9cf",
+                              'V4' = 'darkslateblue', 'V3' = 'mediumorchid', "V5" = 'brown3',  
+                              "V2" = 'darkgoldenrod1'), guide = "none") +
+  scale_color_manual(values = c('V1' = "#ef8a62", 'V6' = "#67a9cf",
+                                'V4' = 'darkslateblue', 'V3' = 'mediumorchid', "V5" = 'brown3',  
+                                "V2" = 'darkgoldenrod1'), guide = 'none')
+
+
+
+all_k <- ggarrange(k3_p, k4_p, k5_p,log_lik, ncol = 1)
+
+ggsave("~/Desktop/Comp_UU/REF_SalAlp_UK/Admixture/Output/Admixture_k3_k5_err.pdf", all_k, width = 7, height = 5, dpi = 300)
+
+```
+
+
+
+#Admixture errors
+```{r }
+all_lakes_k <- read.csv(file.path(dir_pca, "Errors_ngsadmix_subs.csv"), header = TRUE)
+all_lakes_k$K <- sub(".*_(\\d+)\\.log$", "\\1", all_lakes_k$file_name)
+all_lakes_k$Log.likelihood <- gsub("like=", "", all_lakes_k$Log.likelihood )
+all_lakes_k$Log.likelihood <- round(as.numeric(all_lakes_k$Log.likelihood ),0 )
+
+
+log_lik <- 
+all_lakes_k %>%
+  ggplot(aes(x = factor(K, levels = c("1", "2", "3", "4", "5", "6",
+                           "7", "8", "9", "10") ), y = Log.likelihood, group = 1)) +
+  geom_point(shape =23, color = "darkblue") +
+  geom_line( color = "darkblue") +
+  theme_classic()+
+  scale_y_continuous(labels = scientific_format())+
+  labs(y = "-Log-likelihood", x = "Number of clusters (K)")
+
+```
+
+
+#Admixture with PCAngsd subsampled
+```{r}
+#Set up the working directory
+dir_adm <-('~/Desktop/Comp_UU/REF_SalAlp_UK/Admixture/Subsampled')
+
+#Load package
+require(ggplot2)
+require(egg)
+require(tidyverse)
+library(readxl)
+
+#Add admixture files 
+q_2 <- read.table(file.path(dir_adm, 'All_lakes_subsampled_k5.admix.2.Q'), header = F)
+q_3 <- read.table(file.path(dir_adm, 'All_lakes_subsampled_k5.admix.3.Q'), header = F)
+q_4 <- read.table(file.path(dir_adm, 'All_lakes_subsampled_k5.admix.4.Q'), header = F)
+q_5 <- read.table(file.path(dir_adm, 'All_lakes_subsampled_k5.admix.5.Q'), header = F)
+q_6 <- read.table(file.path(dir_adm, 'All_lakes_subsampled_k5.admix.6.Q'), header = F)
+
+
+#Read bam list with lakes file 
+bams <- read.csv("~/Desktop/Comp_UU/REF_SalAlp_UK/BAM_list/all_bam_lakes.list")
+
+#Merge the information above 
+q2_list <- cbind(q_2, bams)
+q3_list <- cbind(q_3, bams)
+q4_list <- cbind(q_4, bams)
+q5_list <- cbind(q_5, bams)
+q6_list <- cbind(q_6, bams)
+
+#remove SampleID 'Myv-12' and 'MyvK-20'
+q2_list <- q2_list[!q2_list$SampleID %in% c('Myv-12', 'MyvK-20'),]
+q3_list <- q3_list[!q3_list$SampleID %in% c('Myv-12', 'MyvK-20'),]
+q4_list <- q4_list[!q4_list$SampleID %in% c('Myv-12', 'MyvK-20'),]
+q5_list <- q5_list[!q5_list$SampleID %in% c('Myv-12', 'MyvK-20'),]
+q6_list <- q6_list[!q6_list$SampleID %in% c('Myv-12', 'MyvK-20'),]
+
+#Make a matrix
+q2_list_pivot <- q2_list %>% pivot_longer(cols = c("V1", "V2"),
+                                          names_to =  "AdmComponents", 
+                                          values_to = "AdmProportions")
+
+q3_list_pivot <- q3_list %>% pivot_longer(cols = c("V1", "V2", 'V3'),
+                                          names_to =  "AdmComponents", 
+                                          values_to = "AdmProportions")
+
+
+q4_list_pivot <- q4_list %>% pivot_longer(cols = c("V1", "V2", 'V3', "V4"),
+                                          names_to =  "AdmComponents", 
+                                          values_to = "AdmProportions")
+q5_list_pivot <- q5_list %>% pivot_longer(cols = c("V1", "V2", 'V3', "V4", 'V5'),
+                                          names_to =  "AdmComponents", 
+                                          values_to = "AdmProportions")
+q6_list_pivot <- q6_list %>% pivot_longer(cols = c("V1", "V2", 'V3', "V4", 'V5', 'V6'),
+                                          names_to =  "AdmComponents", 
+                                          values_to = "AdmProportions")
+#Plot admixture
+#Prepare for ggplot admix
+
+q2_list_pivot$Lake_order= factor(q2_list_pivot$Lake, 
+                                 levels=c('Mývatn','Thingvallavatn','Sirdalsvatnet','Vangsvatnet'))
+q3_list_pivot$Lake_order= factor(q3_list_pivot$Lake, 
+                                 levels=c('Mývatn', 'Thingvallavatn','Sirdalsvatnet','Vangsvatnet'))
+
+q4_list_pivot$Lake_order= factor(q4_list_pivot$Lake, 
+                                 levels=c('Mývatn','Thingvallavatn','Sirdalsvatnet','Vangsvatnet'))
+q5_list_pivot$Lake_order= factor(q5_list_pivot$Lake, 
+                                 levels=c('Mývatn','Thingvallavatn','Sirdalsvatnet','Vangsvatnet'))
+q6_list_pivot$Lake_order= factor(q6_list_pivot$Lake, 
+                                 levels=c('Mývatn', 'Thingvallavatn','Sirdalsvatnet','Vangsvatnet'))
+
+
+#Plot in ggplot
+library(ggthemes)
+
+#Set colors
+# Define consistent color mapping for lakes
+AdmComponents_colors <- c('V1' = "#ef8a62", 'V2' = "#67a9cf",
+                 'V3' = 'darkslateblue', 'V4' = 'mediumorchid', "V5" = 'brown3',  
+                 "V6" = 'darkgoldenrod1')
+
+#Plot
+k2_p <- ggplot(q2_list_pivot, 
+       aes(x = as.factor( SampleID), y =  AdmProportions, fill = factor(AdmComponents))) +
+       geom_col(aes(color = AdmComponents), size = 0.1)+
+  facet_grid(~Lake_order, switch = "x", scales = "free", space = "free") +
+  theme_minimal() + labs(x = "Individuals", title = "K=2", y = "Ancestry \n") +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_x_discrete(expand = expansion(add = 1)) +
+  theme(
+    panel.spacing.x = unit(0.1, "lines"),
+    axis.text.x = element_blank(),
+    panel.grid = element_blank(),
+    strip.text = element_blank()
+    
+  ) +
+  scale_fill_gdocs(guide = FALSE) + xlab(NULL) +
+  scale_fill_manual(values = c('V1' = "#ef8a62", 'V2' = "#67a9cf",
+                               'V3' = 'darkslateblue', 'V4' = 'mediumorchid', "V5" = 'brown3',  
+                               "V6" = 'darkgoldenrod1'), guide = "none") +
+  scale_color_manual(values = c('V1' = "#ef8a62", 'V2' = "#67a9cf",
+                                'V3' = 'darkslateblue', 'V4' = 'mediumorchid', "V5" = 'brown3',  
+                                "V6" = 'darkgoldenrod1'), guide = 'none')
+
+k3_p <- ggplot(q3_list_pivot, 
+               aes(x = as.factor( SampleID), y =  AdmProportions, fill = factor(AdmComponents))) +
+  geom_col(aes(color = AdmComponents), size = 0.1)+
+  facet_grid(~Lake_order, switch = "x", scales = "free", space = "free") +
+  theme_minimal() + labs(x = "Individuals", title = "K=3", y = "Ancestry \n") +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_x_discrete(expand = expansion(add = 1)) +
+  theme(
+    panel.spacing.x = unit(0.1, "lines"),
+    axis.text.x = element_blank(),
+    panel.grid = element_blank(),
+    strip.text = element_blank()
+  ) +
+  scale_fill_gdocs(guide = FALSE) + xlab(NULL) +
+  scale_fill_manual(values = c('V2' = "#ef8a62", 'V3' = "#67a9cf",
+                               'V1' = 'darkslateblue', 'V4' = 'mediumorchid', "V5" = 'brown3',  
+                               "V6" = 'darkgoldenrod1'), guide = "none") +
+  scale_color_manual(values = c('V2' = "#ef8a62", 'V3' = "#67a9cf",
+                                'V1' = 'darkslateblue', 'V4' = 'mediumorchid', "V5" = 'brown3',  
+                                "V6" = 'darkgoldenrod1'), guide = 'none')
+
+k4_p <- ggplot(q4_list_pivot, 
+               aes(x = as.factor( SampleID), y =  AdmProportions, fill = factor(AdmComponents))) +
+  geom_col(aes(color = AdmComponents), size = 0.1)+
+  facet_grid(~Lake_order, switch = "x", scales = "free", space = "free") +
+  theme_minimal() + labs(x = "Individuals", title = "K=4", y = "Ancestry \n") +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_x_discrete(expand = expansion(add = 1)) +
+  theme(
+    panel.spacing.x = unit(0.1, "lines"),
+    axis.text.x = element_blank(),
+    panel.grid = element_blank(),
+    strip.text = element_blank()
+  ) +
+  scale_fill_gdocs(guide = FALSE) + xlab(NULL) +
+  scale_fill_manual(values = c('V3' = "#ef8a62", 'V2' = "#67a9cf",
+                               'V1' = 'darkslateblue', 'V4' = 'mediumorchid', "V5" = 'brown3',  
+                               "V6" = 'darkgoldenrod1'), guide = "none") +
+  scale_color_manual(values = c('V3' = "#ef8a62", 'V2' = "#67a9cf",
+                                'V1' = 'darkslateblue', 'V4' = 'mediumorchid', "V5" = 'brown3',  
+                                "V6" = 'darkgoldenrod1'), guide = 'none')
+
+
+k5_p <- ggplot(q5_list_pivot, 
+               aes(x = as.factor( SampleID), y =  AdmProportions, fill = factor(AdmComponents))) +
+  geom_col(aes(color = AdmComponents), size = 0.1)+
+  facet_grid(~Lake_order, switch = "x", scales = "free", space = "free") +
+  theme_minimal() + labs(x = "Individuals", title = "K=5", y = "Ancestry \n") +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_x_discrete(expand = expansion(add = 1)) +
+  theme(
+    panel.spacing.x = unit(0.1, "lines"),
+    axis.text.x = element_blank(),
+    panel.grid = element_blank(),
+    strip.text = element_text(
+      size = 13)
+  ) +
+  scale_fill_gdocs(guide = FALSE) + xlab(NULL) +
+  scale_fill_manual(values = c('V4' = "#ef8a62", 'V5' = "#67a9cf",
+                               'V2' = 'darkslateblue', 
+                               'V1' = 'mediumorchid', 
+                               "V3" = 'brown3',  
+                               "V6" = 'darkgoldenrod1'), guide = "none") +
+  scale_color_manual(values = c('V4' = "#ef8a62", 
+                                'V5' = "#67a9cf",
+                                'V2' = 'darkslateblue', 
+                                'V1' = 'mediumorchid', 
+                                "V3" = 'brown3',  
+                                "V6" = 'darkgoldenrod1'), guide = 'none')
+
+
+k6_p <- ggplot(q6_list_pivot, 
+               aes(x = as.factor( SampleID), y =  AdmProportions, fill = factor(AdmComponents))) +
+  geom_col(aes(color = AdmComponents), size = 0.1)+
+  facet_grid(~Lake_order, switch = "x", scales = "free", space = "free") +
+  theme_minimal() + labs(x = "Individuals", title = "K=6", y = "Ancestry \n") +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_x_discrete(expand = expansion(add = 1)) +
+  theme(
+    panel.spacing.x = unit(0.1, "lines"),
+    axis.text.x = element_blank(),
+    panel.grid = element_blank(),
+    strip.text = element_text(
+      size = 13)
+  ) +
+  scale_fill_gdocs(guide = FALSE) + xlab(NULL) +
+  scale_fill_manual(values =c('V1' = "#ef8a62", 'V6' = "#67a9cf",
+                              'V4' = 'darkslateblue', 'V3' = 'mediumorchid', "V5" = 'brown3',  
+                              "V2" = 'darkgoldenrod1'), guide = "none") +
+  scale_color_manual(values = c('V1' = "#ef8a62", 'V6' = "#67a9cf",
+                                'V4' = 'darkslateblue', 'V3' = 'mediumorchid', "V5" = 'brown3',  
+                                "V2" = 'darkgoldenrod1'), guide = 'none')
+
+
+
+
+#Admixture error plot
+all_lakes_k <- read.csv('~/Desktop/Comp_UU/REF_SalAlp_UK/Admixture/Subsampled/summary_PCAangsd_subs_All_lakes.csv', header = TRUE)
+
+all_lakes_k$K <- sub(".*_(\\d+)\\.out$", "\\1", all_lakes_k$file_name)
+all_lakes_k$Log.likelihood <- gsub("like=", "", all_lakes_k$Log.likelihood )
+all_lakes_k$Log.likelihood <- round(as.numeric(all_lakes_k$Log.likelihood ),0 )
+all_lakes_k$Frobenius.error <- round(as.numeric(all_lakes_k$Frobenius.error ),0 )
+
+log_lik <- 
+all_lakes_k %>%
+  ggplot(aes(x = factor(K, levels = c("1", "2", "3", "4", "5", "6",
+                           "7", "8", "9", "10") ), y = Log.likelihood, group = 1)) +
+  geom_point(shape =23, color = "darkblue") +
+  geom_line( color = "darkblue") +
+  theme_classic()+
+  scale_y_continuous(labels = scientific_format())+
+  labs(y = "-Log-likelihood", x = "Number of clusters (K)")
+
+forb_err <- 
+all_lakes_k %>%
+  ggplot(aes(x = factor(K, levels = c("1", "2", "3", "4", "5", "6",
+                           "7", "8", "9", "10") ), y = Frobenius.error, group = 1)) +
+  geom_point(shape =23, color = "darkblue") +
+  geom_line( color = "darkblue") +
+  theme_classic()+
+  scale_y_continuous(labels = scientific_format())+
+  labs(y = "Frobenius error", x = "Number of clusters (K)")
+
+
+
+# Arrange the first three plots in three separate rows (one column)
+top_plots <- plot_grid(k3_p, k4_p, k5_p, ncol = 1, nrow = 3)
+
+# Arrange the last two plots in a single row with two columns
+bottom_plots <- plot_grid(log_lik, forb_err, ncol = 2, nrow = 1 )
+
+# Combine the top and bottom parts, placing top_plots above bottom_plots
+all_k <- plot_grid(top_plots, bottom_plots, 
+                   ncol = 1, nrow = 2, 
+                   rel_heights = c(3, 1) ,
+                   labels = c("d" , ""),
+                   label_size = 18
+                   )   
+
+ggsave("~/Desktop/Comp_UU/REF_SalAlp_UK/Admixture/Output/Admixture_PCAngsd_k3_k5.pdf", all_k , width = 9, height = 6, dpi = 300)
+
+```
+
+
+
+
+#Plot NJ tree
+```{r}
+all <-  read.tree('~/Desktop/Comp_UU/REF_SalAlp_UK/Admixture/Subsampled/All_lakes_subsampled_k5.tree')
+
+#Read bam list with lakes file 
+bams <- read.csv("~/Desktop/Comp_UU/REF_SalAlp_UK/BAM_list/all_bam_pca_lakes.list")
+
+tree <- drop.tip(all, c("Myv-12", "MyvK-20"))
+
+#Correct the tip labels
+tip_labels <- tree$tip.label 
+
+# Create a named vector where names are the original tip labels, and the corresponding groups
+lake_labels <- bams$Lake[match(tip_labels, bams$SampleID)]
+morphs_labels <- bams$Morph_short[match(tip_labels, bams$SampleID)]
+
+
+x <- tree
+d <- data.frame(label=x$tip.label, Lake = lake_labels, Morph = morphs_labels)
+tree2 <- full_join(x, d, by='label')
+trs <- list(Group = tree2)
+class(trs) <- 'treedataList'
+
+#Tree for paper lakes and morphs
+all_tree <-ggtree(trs, layout="equal_angle") + 
+  geom_tippoint(aes(subset=.id == 'Group', colour=Group)) + 
+  #geom_tiplab()+
+  #scale_color_manual(values = c("Benthic" = "red", "Pelagic" = "darkgreen")) +
+  theme_tree2()+
+  theme(strip.background = element_rect(colour = "white", fill = "white"),
+        text = element_text(size = 14),
+        legend.position = "none", #c(0.7, 0.3),  # Position inside the plot, adjust these values as needed
+        legend.background = element_rect(fill = "white", color = NA),  # Add a white background to the legend
+        legend.key = element_rect(fill = "white", color = NA))+
+  guides(colour = guide_legend(title = NULL))
+
+
+# Save the plot to a file
+#ggsave("/Users/rabu0002/Desktop/Comp_UU/REF_SalAlp_UK/PCA_NJ_tree/Myv_tree_plot.pdf", plot = myv_tree, width = 4, height = 2)
+
+```
+

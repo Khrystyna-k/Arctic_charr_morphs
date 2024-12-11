@@ -1,0 +1,84 @@
+---
+title: "Untitled"
+author: "Khrystyna"
+date: "2024-08-13"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+#Libs
+library(tidyverse)
+library(patchwork)
+library(zoo)
+library(data.table)
+library(dplyr)
+library(scales)
+library(ggplot2)
+options(scipen = 999)
+
+```
+
+
+#Fst
+```{r }
+#Directory
+dir <- '~/Desktop/Comp_UU/REF_SalAlp_UK/FST/Myv_Thin_chr34'
+
+#Load data 
+files <- list.files(dir)
+
+# Filter files that start with numbers from 1 to 13 and end with ""
+desired_files <- grep("10kbstep.fst_win$", files, value = TRUE)
+col_names <- c('chr', 'midPos','Nsites', 'Fst')
+
+# Read the desired files
+fst_list <- list()
+
+for(file in desired_files) {
+  # Try to read the file content, handle any errors gracefully
+  file_content <- try(read.table(file.path(dir, file), header = TRUE, sep = "\t", stringsAsFactors = FALSE), silent = TRUE)
+  
+  # Check if the read operation resulted in an error or if the file is empty
+  if (inherits(file_content, "try-error") || nrow(file_content) == 0) {
+    next  # Skip to the next file in the loop
+  }
+  
+  #file_content <- read.table(file.path(dir, file), header = F)[,-1]
+  colnames(file_content) <- col_names
+  
+  #Names of pops
+  pops <- gsub("maf_|\\.list.maf_|\\.list.|[1-9]|\\_20kb_10kbstep.fst_win", "", file)
+  pops <- gsub("0", "", pops)
+  
+  file_content$Populations <- pops
+
+  # Process the file content as needed
+  fst_list[[file]] <- file_content
+}
+
+#Combine and filter for > 10 sites
+fst_combined <- do.call(rbind, fst_list)
+fst_combined_filter <- fst_combined[fst_combined$Nsites >= 10,]
+
+#Select only shared region 
+x1 = 18360000
+x2 = 18450000
+
+fst_combined_filter_shared <- fst_combined_filter[fst_combined_filter$midPos >=x1 & fst_combined_filter$midPos <=x2, ]
+
+#Check if all chromosomes are present
+fst_stats <- fst_combined_filter_shared %>%
+                group_by(Populations) %>%
+                summarise(n_chr = n_distinct(chr),
+                          n_sites = sum(Nsites),
+                          mean_Fst = round(mean(Fst),2 ),
+                          sd_fst = sd(Fst)
+)
+
+
+```
+
+
+
+

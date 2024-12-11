@@ -1,0 +1,393 @@
+
+#Set up the working directory
+```{r setup, include=FALSE}
+require(tidyverse)
+library(psych)
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(RColorBrewer)
+library(egg)
+require(ggforce)
+
+```
+
+
+```{r}
+#Read bam list with lakes file 
+bams <- read.csv("~/Desktop/Comp_UU/REF_SalAlp_UK/BAM_list/all_bam_pca_lakes.list")
+
+#Form a list per each population/lake
+Thin_list <- bams[bams$Lake == "Thingvallavatn",]
+Myv_list <- bams[bams$Lake == "Mývatn" ,]
+Sir_list <- bams[bams$Lake == "Sirdalsvatnet" ,]
+Van_list <- bams[bams$Lake == "Vangsvatnet" ,]
+
+#Remove those from Myv list
+Myv_rm_list <- c('Myv-12', 'MyvK-20')
+
+```
+
+
+#Read cov files for PCA
+```{r}
+dir_pca <- '~/Desktop/Comp_UU/REF_SalAlp_UK/Admixture/Subsampled'
+
+pca_Sir <- as.matrix(
+  read.table(file.path(dir_pca, paste("Sir_CharrLowPass_GATKMethod_MinMAF0.05_no_unloc_with_header_2_subsampled.cov")), header = F))
+
+pca_Van <- as.matrix(
+  read.table(file.path(dir_pca, paste("Van_CharrLowPass_GATKMethod_MinMAF0.05_no_unloc_with_header_2_subsampled.cov")), header = F))
+
+pca_Myv <- as.matrix(
+  read.table(file.path(dir_pca, paste("Myv_CharrLowPass_GATKMethod_MinMAF0.05_no_unloc_with_header_2_subsampled.cov")), header = F))
+
+pca_Thin <- as.matrix(
+  read.table(file.path(dir_pca, paste("Thin_CharrLowPass_GATKMethod_MinMAF0.05_no_unloc_subsampled.cov")), header = F))
+
+```
+
+#Sir
+```{r}
+data <- pca_Sir 
+bamList <- Sir_list
+
+#Run this uniquly
+eigen.data <- eigen(data)
+
+
+#We can then extract the eigenvectors from the pca object and format them into a dataframe for plotting, e.g. using ggplot().
+eigenvectors <- as.data.frame(eigen.data$vectors)
+eigenvalues <-  eigen.data$values
+
+eigenvectors$Sample <- bamList$SampleID
+eigenvectors$Morph_short <- bamList$Morph_short
+eigenvectors$Lake <-  bamList$Lake
+
+
+#Get vars
+pca.eigenval.sum = sum(eigen.data$values)
+varPC1 <- (eigen.data$values[1]/pca.eigenval.sum)*100 #Variance explained by PC1
+varPC2 <- (eigen.data$values[2]/pca.eigenval.sum)*100 #Variance explained by PC2
+
+
+sir_pca <- ggplot(data = eigenvectors, 
+              aes(x = V1, y = V2, color = Morph_short)) +
+  geom_point(alpha = 0.95, size = 2.5, shape = 21, color = 'black', aes(fill = factor(Morph_short, levels = c("DB", "LP")) )) +
+  xlab(paste0("PC1: ", round(varPC1,1),"% variance")) +
+  ylab(paste0("PC2: ", round(varPC2,1),"% variance")) +
+  labs(title = "a") +
+  theme_bw() +
+  theme(text=element_text(size=14)) +
+  theme(plot.title = element_text(face = "bold"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank())+
+  scale_fill_manual(values = c("DB" = "red", "LP" =  "#67a9cf")) +
+  geom_vline(xintercept = 0, linetype = "dotted")+
+  geom_hline(yintercept = 0, linetype = "dotted")+
+  ylim(-1,1)+
+  xlim(-0.3, 0.3)+
+  labs(fill='Morph', subtitle = 'Sirdalsvatnet')
+
+
+```
+
+#Van
+```{r}
+data <- pca_Van
+bamList <- Van_list
+
+#Run this uniquly
+eigen.data <- eigen(data)
+
+
+#We can then extract the eigenvectors from the pca object and format them into a dataframe for plotting, e.g. using ggplot().
+eigenvectors <- as.data.frame(eigen.data$vectors)
+eigenvalues <-  eigen.data$values
+
+eigenvectors$Sample <- bamList$SampleID
+eigenvectors$Morph_short <- bamList$Morph_short
+eigenvectors$Lake <-  bamList$Lake
+
+#Get vars
+pca.eigenval.sum = sum(eigen.data$values)
+varPC1 <- (eigen.data$values[1]/pca.eigenval.sum)*100 #Variance explained by PC1
+varPC2 <- (eigen.data$values[2]/pca.eigenval.sum)*100 #Variance explained by PC2
+
+
+van_pca <- ggplot(data = eigenvectors, 
+              aes(x = V1, y = V2, color = Morph_short)) +
+  geom_point(alpha = 0.95, size = 2.5, shape = 21, color = 'black', aes(fill = factor(Morph_short,levels = c("DB", "LP")) )) +
+  xlab(paste0("PC1: ", round(varPC1,1),"% variance")) +
+  ylab(paste0("PC2: ", round(varPC2,1),"% variance")) +
+  labs(title = "c")+
+  theme_bw() +
+  theme(text=element_text(size=14)) +
+  theme(plot.title = element_text(face = "bold"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank())+
+  scale_fill_manual(values = c("DB" = "red", "LP" =  "#67a9cf")) +
+  geom_vline(xintercept = 0, linetype = "dotted")+
+  geom_hline(yintercept = 0, linetype = "dotted")+
+  ylim(-1,1)+
+  xlim(-0.5, 0.5)+
+  labs(fill='Morph', subtitle = 'Vangsvatnet')
+
+
+```
+
+
+#Iceland: Myvatn
+```{r}
+
+data <- pca_Myv
+bamList <- Myv_list
+
+#Run this uniquly
+eigen.data <- eigen(data)
+
+
+#We can then extract the eigenvectors from the pca object and format them into a dataframe for plotting, e.g. using ggplot().
+eigenvectors <- as.data.frame(eigen.data$vectors)
+eigenvalues <-  eigen.data$values
+
+eigenvectors$Sample <- bamList$SampleID
+eigenvectors$Morph_short <- bamList$Morph_short
+eigenvectors$Lake <-  bamList$Lake
+
+#Get vars
+pca.eigenval.sum = sum(eigen.data$values)
+varPC1 <- (eigen.data$values[1]/pca.eigenval.sum)*100 #Variance explained by PC1
+varPC2 <- (eigen.data$values[2]/pca.eigenval.sum)*100 #Variance explained by PC2
+
+
+#Myvatn
+myv_pca <- ggplot(data = eigenvectors[!eigenvectors$Sample %in% Myv_rm_list,], 
+             aes(x = V1, y = V2, color = factor(Morph_short, levels = c("SB", "LG" )) )) +
+  geom_point(alpha = 0.95, size = 3,  shape = 21, color = 'black',
+             aes(fill = factor(Morph_short, levels = c("SB", "LG" )))) +
+  xlab(paste0("PC1: ", round(varPC1,1),"% variance")) +
+  ylab(paste0("PC2: ", round(varPC2,1),"% variance")) +
+  theme_bw() +
+  theme(text=element_text(size=14)
+        ) +
+  labs(title = "e")+
+  theme(plot.title = element_text(face = "bold"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank())+
+  scale_fill_manual(values = c("SB" = "red", "LG" =  "#67a9cf")) +
+  geom_vline(xintercept = 0, linetype = "dotted")+
+  geom_hline(yintercept = 0, linetype = "dotted")+
+  ylim(-0.95,0.95)+
+  xlim(-0.3, 0.3)+
+  labs(fill ='Morph', subtitle = 'Mývatn')
+
+
+
+```
+
+
+#Thingvalla
+```{r }
+
+data <- pca_Thin
+bamList <- Thin_list
+
+#Run this uniquly
+eigen.data <- eigen(data)
+
+
+#We can then extract the eigenvectors from the pca object and format them into a dataframe for plotting, e.g. using ggplot().
+eigenvectors <- as.data.frame(eigen.data$vectors)
+eigenvalues <-  eigen.data$values
+
+eigenvectors$Sample <- bamList$SampleID
+eigenvectors$Morph_short <- bamList$Morph_short
+eigenvectors$Lake <-  bamList$Lake
+
+#Get vars
+pca.eigenval.sum = sum(eigen.data$values)
+varPC1 <- (eigen.data$values[1]/pca.eigenval.sum)*100 #Variance explained by PC1
+varPC2 <- (eigen.data$values[2]/pca.eigenval.sum)*100 #Variance explained by PC2
+
+
+thin_pca <- 
+  ggplot(data = eigenvectors, 
+             aes(x = V1, y = V2 )) +
+  geom_point(alpha = 0.95, size = 2.5, shape = 21, color = 'black', aes(fill = factor(Morph_short, levels = c("SB", "LB","PL", "Pi")) ) ) +
+  xlab(paste0("PC1: ", round(varPC1,1),"% variance")) +
+  ylab(paste0("PC2: ", round(varPC2,1),"% variance")) +
+  theme_bw() +
+  labs(title = "g")+
+  theme(text=element_text(size=14)) +
+  theme(plot.title = element_text(face= "bold"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank())+
+  scale_fill_manual(values = c("LB" = "#67a9cf", "SB" =  "red", 
+                                 "PL" = "darkorchid", 
+                                "Pi" =  "green"))+
+  geom_vline(xintercept = 0, linetype = "dotted")+
+  geom_hline(yintercept = 0, linetype = "dotted")+
+  ylim(-0.3,0.3)+
+  xlim(-0.2, 0.2)+
+  labs(fill='Morph', subtitle = 'Thingvallavatn' )
+
+```
+
+#Admixture
+```{r}
+#Set up the working directory
+dir = "~/Desktop/Comp_UU/REF_SalAlp_UK/Admixture/Subsampled"
+
+#Load files 
+adm_Myv_MyvK <- read.table(file.path(dir, 'Myv_subsampled_2.qopt'), header = F)
+adm_Sir_D_N <-  read.table(file.path(dir, "Sir_subsampled_2.qopt"), header = F)
+adm_Van_D_N <-  read.table(file.path(dir,"Van_subsampled_2.qopt"), header = F)
+adm_Thin_all_3 <-  read.table(file.path(dir,"Thin_subs_ngxadmix_3.qopt"), header = F)
+
+
+#Read bam list with lakes file 
+bams <- read.csv("~/Desktop/Comp_UU/REF_SalAlp_UK/BAM_list/all_bam_pca_lakes.list")
+
+#remove 5 extra
+#Remove those from Myv list
+Myv_rm_list <- c('Myv-12', 'MyvK-20')
+bams_Myv_MyvK <- bams[bams$Lake == "Mývatn" , ]
+
+bams_Sir <- bams[bams$Lake == 'Sirdalsvatnet', ]
+bams_Van <- bams[bams$Lake == 'Vangsvatnet', ]
+bams_Thin <- bams[bams$Lake == 'Thingvallavatn', ]
+
+
+#Merge the information above 
+adm_Myv_list <- cbind(adm_Myv_MyvK, bams_Myv_MyvK)
+adm_Myv_MyvK_list <-adm_Myv_list[!adm_Myv_list$SampleID %in% Myv_rm_list, ]
+
+adm_Sir_list <- cbind(adm_Sir_D_N, bams_Sir)
+adm_Van_list <- cbind(adm_Van_D_N, bams_Van)
+adm_Thin_list_3 <- cbind(adm_Thin_all_3, bams_Thin)
+
+#Make a matrix
+adm_Myv_MyvK_pivot <- 
+  adm_Myv_MyvK_list %>% 
+  pivot_longer(cols = c("V1", "V2"),
+  names_to =  "AdmComponents", 
+  values_to = "AdmProportions")
+
+adm_Sir_pivot <- 
+  adm_Sir_list %>% 
+  pivot_longer(cols = c("V1", "V2"),
+               names_to =  "AdmComponents", 
+               values_to = "AdmProportions")
+
+adm_Van_pivot <- 
+  adm_Van_list %>% 
+  pivot_longer(cols = c("V1", "V2"),
+               names_to =  "AdmComponents", 
+               values_to = "AdmProportions")
+
+adm_Thin_3_pivot <- 
+  adm_Thin_list_3 %>% 
+  pivot_longer(cols = c("V1", "V2", "V3"),
+               names_to =  "AdmComponents", 
+               values_to = "AdmProportions")
+
+#Plot admixture
+library(ggthemes)
+
+#describeBy(adm_Myv_MyvK_list, "Morph_short")
+Myv_MyvK <- 
+  ggplot(adm_Myv_MyvK_pivot, 
+       aes(x = as.factor( SampleID), y =  AdmProportions, fill = factor(AdmComponents))) +
+  geom_col(aes(color = AdmComponents), size = 0.1)+
+  facet_grid(~Morph_short, switch = "x", scales = "free", space = "free") +
+  theme_minimal() + 
+  labs(x = "Individuals", subtitle = "K=2", y = "Ancestry", title = "f") +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_x_discrete(expand = expansion(add = 1)) +
+  theme(
+    plot.title = element_text(face= "bold"),
+    text=element_text(size=14),
+    panel.spacing.x = unit(0.1, "lines"),
+    axis.text.x = element_blank(),
+    panel.grid = element_blank()
+  ) +
+  scale_fill_gdocs(guide = FALSE)+
+  scale_fill_manual(values = c("#ef8a62", "#67a9cf"), guide = "none") +
+  scale_color_manual(values = c("#ef8a62", "#67a9cf"), guide = 'none')
+
+Sir <- ggplot(adm_Sir_pivot, 
+               aes(x = as.factor(SampleID), y =  AdmProportions, fill = factor(AdmComponents))) +
+  geom_col(aes(color = AdmComponents), size = 0.1)+
+  facet_grid(~Morph_short, switch = "x", scales = "free", space = "free") +
+  theme_minimal() + 
+  labs(x = "Individuals", subtitle = "K=2", y = "Ancestry", title = "b") +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_x_discrete(expand = expansion(add = 1)) +
+  theme(plot.title = element_text(face= "bold"),
+    text=element_text(size=14),
+    panel.spacing.x = unit(0.1, "lines"),
+    axis.text.x = element_blank(),
+    panel.grid = element_blank()
+  ) +
+  scale_fill_gdocs(guide = FALSE) + xlab(NULL) +
+  scale_fill_manual(values = c("#ef8a62", "#67a9cf"), guide = "none") +
+  scale_color_manual(values = c("#ef8a62", "#67a9cf"), guide = 'none')
+
+
+Van <- ggplot(adm_Van_pivot, 
+              aes(x = as.factor( SampleID), y =  AdmProportions, fill = factor(AdmComponents))) +
+  geom_col(aes(color = AdmComponents), size = 0.1)+
+  facet_grid(~Morph_short, switch = "x", scales = "free", space = "free") +
+  theme_minimal() + 
+  labs(x = "Individuals", subtitle = "K=2", y = "Ancestry", title = "d") +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_x_discrete(expand = expansion(add = 1)) +
+  theme(plot.title = element_text(face= "bold"),
+    text=element_text(size=14),
+    panel.spacing.x = unit(0.1, "lines"),
+    axis.text.x = element_blank(),
+    panel.grid = element_blank()
+  ) +
+  scale_fill_gdocs(guide = FALSE) + xlab(NULL) +
+  scale_fill_manual(values = c("#ef8a62", "#67a9cf"), guide = "none") +
+  scale_color_manual(values = c("#ef8a62", "#67a9cf"), guide = 'none')
+
+
+#Order Thingingvalla
+adm_Thin_3_pivot$Morph_order= factor(adm_Thin_3_pivot$Morph_short, 
+                                     levels=c('PL', 'Pi', "LB", 'SB'))
+
+Thin_3 <- ggplot(adm_Thin_3_pivot, 
+                 aes(x = as.factor( SampleID), y =  AdmProportions, fill = factor(AdmComponents))) +
+  geom_col(aes(color = AdmComponents), size = 0.1)+
+  facet_grid(~Morph_order, switch = "x", scales = "free", space = "free") +
+  theme_minimal() + 
+  labs(x = "Individuals", subtitle = "K=3", y = "Ancestry", title = "h") +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_x_discrete(expand = expansion(add = 1)) +
+  theme(plot.title = element_text(face= "bold"),
+    text=element_text(size=14),
+    panel.spacing.x = unit(0.1, "lines"),
+    axis.text.x = element_blank(),
+    panel.grid = element_blank()
+  ) +
+  scale_fill_gdocs(guide = FALSE) + xlab(NULL) +
+  scale_fill_manual(values = c("#ef8a62", "#67a9cf",'darkslateblue', 'mediumorchid'), guide = "none") +
+  scale_color_manual(values = c("#ef8a62", "#67a9cf",'darkslateblue', 'mediumorchid'), guide = 'none')
+```
+
+
+
+#Combined admix and PCA per lake
+```{r}
+#This is combined plot for admix and PCA per lake
+all <- ggarrange(sir_pca, Sir,
+                 van_pca, Van, 
+                 myv_pca, Myv_MyvK, 
+                 thin_pca, Thin_3, 
+                 ncol = 2, nrow = 4)
+ggsave('~/Desktop/Comp_UU/REF_SalAlp_UK/Admixture/Figure3.pdf', all, width = 10, height = 10, dpi = 300)
+
+```
+

@@ -1,0 +1,159 @@
+---
+title: "Untitled"
+author: "Khrystyna"
+date: "2024-08-13"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+#Libs
+library(tidyverse)
+library(patchwork)
+library(zoo)
+library(data.table)
+library(dplyr)
+library(scales)
+library(ggplot2)
+options(scipen = 999)
+
+```
+
+
+
+#Fst
+```{r }
+
+#Directory
+dir <- '~/Desktop/Comp_UU/REF_SalAlp_UK/FST/Morphs'
+
+#Load data 
+files <- list.files(dir)
+
+# Filter files that start with numbers from 1 to 13 and end with ""
+desired_files <- grep("10kbstep.fst_win$", files, value = TRUE)
+col_names <- c('chr', 'midPos','Nsites', 'Fst')
+
+# Read the desired files
+fst_list <- list()
+
+for(file in desired_files) {
+  file_content <- read.table(file.path(dir, file), header = TRUE, sep = "\t", 
+                             stringsAsFactors = FALSE)
+  
+  #file_content <- read.table(file.path(dir, file), header = F)[,-1]
+  colnames(file_content) <- col_names
+  
+  #Names of pops
+  pops <- gsub("maf_|\\.list.maf_|\\.list.|[1-9]|\\_20kb_10kbstep.fst_win", "", file)
+  pops <- gsub("0", "", pops)
+  
+  file_content$Populations <- pops
+
+  # Process the file content as needed
+  fst_list[[file]] <- file_content
+}
+
+#Combine and filter for > 10 sites
+fst_combined <- do.call(rbind, fst_list)
+fst_combined_filter <- fst_combined[fst_combined$Nsites >= 10,]
+
+#Check if all chromosomes are present
+fst_stats <- fst_combined_filter %>%
+                group_by(Populations) %>%
+                summarise(n_chr = n_distinct(chr),
+                          n_sites = sum(Nsites),
+                          mean_Fst = round(mean(Fst),2 ),
+                          sd_fst = sd(Fst)
+)
+
+```
+
+
+#Plot Fst for Thingvallavatn
+```{r}
+#fst_stats$Pop2 <- fst_stats$Populations
+
+
+
+# Create a named vector for the replacements
+fst_stats$Lake <- case_when(startsWith(fst_stats$Populations, "Myv") ~ "Mývatn",
+                                   startsWith(fst_stats$Populations,"Van")~ "Vangsvatnet",
+                                   startsWith(fst_stats$Populations,"Thi")~ "Thingvallavatn",
+                                   startsWith(fst_stats$Populations,"Sir")~ "Sirdalsvatnet",
+                                   )
+
+#Select Thingvalla only
+fst_stats_thin <- fst_stats[fst_stats$Lake == "Thingvallavatn",]
+
+# Split the "Populations" column by "Thi" and remove any empty elements
+splitted <- strsplit(fst_stats_thin$Populations, "Thi")
+splitted <- lapply(splitted, function(x) x[x != ""])
+
+# Add the split parts as new columns "Pop1" and "Pop2" to fst_stats_thin
+fst_stats_thin$Pop1 <- sapply(splitted, function(x) x[1])
+fst_stats_thin$Pop2 <- sapply(splitted, function(x) x[2])
+fst_stats_thin <- fst_stats_thin[fst_stats_thin$Populations != "Thi_LB_SBThi_Pi_PL",]
+
+```
+
+
+
+# Add reverse combinations (symmetry) so that pop1 -> pop2 and pop2 -> pop1 are both represented
+```{r}
+fst_data_dir <- data.frame(
+  pop2 = fst_stats_thin$Pop1,
+  pop1 = fst_stats_thin$Pop2,
+  Fst = fst_stats_thin$mean_Fst
+)
+
+fst_data_rev <- data.frame(
+  pop1 = fst_stats_thin$Pop1,
+  pop2 = fst_stats_thin$Pop2,
+  Fst = fst_stats_thin$mean_Fst
+)
+
+# Combine original and reverse data
+fst_full <- rbind(fst_data_dir, fst_data_rev)
+
+# Add diagonal values (Fst between the same population is 0)
+unique_pops <- unique(c(fst_full$pop1, fst_full$pop2))
+diag_data <- data.frame(
+  pop1 = unique_pops,
+  pop2 = unique_pops,
+  Fst = 0
+)
+
+# Combine with diagonal data
+fst_full <- rbind(fst_full, diag_data)
+
+# Create a symmetric matrix
+fst_matrix <- matrix(0, nrow = length(unique_pops), ncol = length(unique_pops),
+                     dimnames = list(unique_pops, unique_pops))
+
+# Fill the matrix with Fst values
+for (i in 1:nrow(fst_full)) {
+  fst_matrix[fst_full$pop1[i], fst_full$pop2[i]] <- fst_full$Fst[i]
+}
+row.names(fst_matrix)
+
+#Order lakes 
+desired_order <-  c("PL","Pi",     "LB", "SB")
+fst_matrix_ordered <- fst_matrix[desired_order, desired_order, drop = FALSE]
+
+#Prepare matrix to plot heatmap 
+library(corrplot)
+bright_colors <- colorRampPalette(c("blue", "orange"))(100)
+pdf("~/Desktop/Comp_UU/REF_SalAlp_UK/PCA_NJ_tree/Fst_Thin_plot.pdf", width = 5, height = 6)
+corrplot(fst_matrix_ordered, 
+         method = 'number', 
+         type = 'lower', 
+         tl.col = "black",  
+         tl.cex = 1.2, 
+         col = bright_colors, 
+         diag = F,
+         tl.srt = 0)  # Set text labels to horizontal
+dev.off()
+
+
+```

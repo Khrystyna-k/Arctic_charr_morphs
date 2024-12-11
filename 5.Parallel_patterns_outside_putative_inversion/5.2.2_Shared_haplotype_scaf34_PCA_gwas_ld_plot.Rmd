@@ -1,0 +1,413 @@
+---
+title: "Untitled"
+author: "Khrystyna"
+date: "2024-07-10"
+output: html_document
+---
+
+#Setup
+```{r setup, include=FALSE}
+require(tidyverse)
+require(ggplot2)
+require(ggrastr)
+require(raster)
+```
+
+#Read covariance matrix from PCAngsd
+```{r setup, include=FALSE}
+dir <- "~/Desktop/Comp_UU/REF_SalAlp_UK/Shared_regions"
+
+# Read the desired files
+cov_file <- read.table(file.path(dir, 'Myv_Thin_all_homo.list_shared_34chr_18.1_18.5Mb.cov'), header = F)
+
+#Read bam file list and add lake information
+bams <- read.csv("~/Desktop/Comp_UU/REF_SalAlp_UK/BAM_list/all_bam_pca_lakes.list")
+
+df <- read.table(file.path('~/Desktop/Comp_UU/REF_SalAlp_UK/BAM_list/Shared_34chr/Myv_Thin_all_homo.list'), header = F)
+df_info <- left_join(df, bams, by =c("V1" =  "Bam"))
+
+
+```
+
+
+#Plot PCA
+```{r }
+
+data <- cov_file
+bamList <- df_info
+
+#Run this uniquly
+eigen.data <- eigen(as.matrix(data))
+
+
+#We can then extract the eigenvectors from the pca object and format them into a dataframe for plotting, e.g. using ggplot().
+eigenvectors <- as.data.frame(eigen.data$vectors)
+eigenvalues <-  eigen.data$values
+
+eigenvectors$Sample <- bamList$SampleID
+eigenvectors$Morph <- bamList$Morph_short
+eigenvectors$Lake <-  bamList$Lake
+
+#Set uo color pannel
+lake_colors <- c("Mývatn" = "red",
+                 "Thingvallavatn" = 'darkorchid')
+
+
+#For annotation 
+unique_lakes=unique(bamList$Lake)
+
+custom_colors <- c( 
+    'LB' = 'steelblue1',
+    'SB' = 'blue',
+    'Pi' = 'orange',
+    'PL' = 'red',
+    "LG" = "darkred")
+
+# Define the desired order of morphs
+morphs_order <- c("SB", "LB", "LG", "Pi", "PL")
+
+# Convert the Morph variable to a factor with the specified levels
+eigenvectors$Morph <- factor(eigenvectors$Morph, levels = morphs_order)
+
+
+#Get vars
+pca.eigenval.sum = sum(eigen.data$values)
+varPC1 <- (eigen.data$values[1]/pca.eigenval.sum)*100 #Variance explained by PC1
+varPC2 <- (eigen.data$values[2]/pca.eigenval.sum)*100 #Variance explained by PC2
+
+#install.packages("ggforce")
+library("ggforce")
+
+# Calculate centroids and a radius for circles
+centroids <- aggregate(cbind(V1, V2) ~ Lake, data = eigenvectors, FUN = mean)
+radius <- 0.05 # Adjust the radius to your preference
+
+all <- ggplot(data = eigenvectors, aes(x = V1, y = V2)) +
+  geom_point(alpha = 0.7, size = 4, shape = 21, color = 'black', aes(fill = Morph)) +
+  xlab(paste0("PC1: ", round(varPC1, 1), "% variance")) +
+  ylab(paste0("PC2: ", round(varPC2, 1), "% variance")) +
+  theme_bw(18) +
+  theme(text = element_text(size = 16),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        legend.position = "top") +
+  labs(color = "Morph") +
+  scale_fill_manual(values = custom_colors) +
+  geom_vline(xintercept = 0, linetype = "dotted") +
+  geom_hline(yintercept = 0, linetype = "dotted") +
+  xlim(-0.18, 0.18) +
+  ylim(-0.18, 0.18) +
+  geom_mark_ellipse(aes(color = Lake), show.legend = FALSE) +
+  scale_color_manual(values =  lake_colors)+
+  annotate("text", x =-0.04, y = 0.13,  label = "Mývatn", size = 5, color = "red" )+
+  annotate("text", x =0.07, y = -0.1,  label = "Thingvallavatn", size = 5,color = "darkorchid"   )
+
+
+#Save the plot
+ggsave(file.path(dir, "PCA_all_chr34_homo.pdf"), plot = all, width = 5, height = 5, dpi = 300)
+
+
+```
+
+#Gwas and LD for the 34 chr region
+```{r }
+#Libraries
+library(ggplot2)
+library(gridExtra)
+library(ggpubr)
+library(scales)
+
+
+#Read GWAS
+thin_gwas <- read.table('~/Desktop/Comp_UU/REF_SalAlp_UK/GWAS/Data/Thi_DB_LB_vs_PL_Pi.pvalue', header = T)
+myv_gwas <- read.table('~/Desktop/Comp_UU/REF_SalAlp_UK/GWAS/Data/Myv_PCA_SB_PL.pvalue', header = T)
+
+# Read the file with the necessary arguments
+thin_ld <- read.table( "~/Desktop/Comp_UU/REF_SalAlp_UK/LD/Thin_GATKMethod_MinMAF0.05_shared_34chr_18.3_18.5Mb.ld",stringsAsFactors = FALSE, header = FALSE, na.strings = "nan",fill = TRUE)[1:4]
+myv_ld <- read.table("~/Desktop/Comp_UU/REF_SalAlp_UK/LD/Myv_CharrLowPass_GATKMethod_MinMAF0.05_shared_34chr_18.3_18.5Mb.ld", stringsAsFactors = F, header = F, na.strings = "nan", fill = TRUE)[1:4]
+
+
+#Define positions
+chr=34
+minn = 18360000 - 50000
+maxx = 18500000 + 50000
+
+#Plot GWAS and LD
+#Myvatn
+name = "Mývatn, SB vs. LG"
+data = myv_gwas
+file = myv_ld
+  
+  #Set up bonferroni correction 
+  bonf_2 <- 0.00000001/nrow(data)
+  bonf_1 <- 0.01/nrow(data)
+  
+  plot_gwas_myv <- 
+    data[data$Chromosome == chr & data$Position >= minn &
+       data$Position <= maxx,] %>% 
+  ggplot() +
+  geom_point(aes(y = -log10(pvalue), x = Position/1000000), size = 1) +
+  theme_classic(16) +
+  theme(legend.position = 'none',
+        axis.title.x = element_blank(),
+        axis.text.x = element_blank()
+        ) +
+    labs(y ='-log10(P-value)', x = 'Position')+
+  annotate(geom = "rect", xmin = 18.36, xmax = 18.45, 
+           ymin = 0, ymax = 25,fill = "blue", alpha = 0.2)+
+  labs(subtitle = paste(name)) +
+  geom_hline(yintercept = -log10(bonf_1), linetype="dashed", color = "red", lwd=1.5 )+
+  geom_hline(yintercept = -log10(bonf_2), linetype="dashed", color = "blue", lwd=1.5 )+
+  scale_y_continuous(labels = label_number(accuracy = 0.01)) +
+  scale_x_continuous(
+    labels = label_number(accuracy = 0.01),
+    limits = c(minn/1e6, maxx/1e6)
+  )
+  
+  # Assign column names for clarity
+colnames(file) <- c("Pos1", "Pos2", "Distance", "R2_Pearson")
+
+# Clean Pos1 and Pos2 columns and extract the numeric positions
+file$Pos1_Mb <- as.numeric(gsub(".*:", "", file$Pos1))
+file$Pos2_Mb <- as.numeric(gsub(".*:", "", file$Pos2))
+
+file$Pos1_Mb <- round(file$Pos1_Mb/1e6,3)
+file$Pos2_Mb <- round(file$Pos2_Mb/1e6,3)
+
+# Extract chromosome numbers from Pos1
+file$Chr <- as.numeric(gsub(":.*", "", file$Pos1))
+
+# Replace any 'nan' or 'inf' values with NA for numerical columns
+file$R2_Pearson[file$R2_Pearson == "NaN" | file$R2_Pearson == "-NaN"] <- NA
+
+
+# Now, attempt to convert the columns to numeric values
+file$R2_Pearson <- as.numeric(file$R2_Pearson)
+file <- na.omit(file)
+
+# Create the heatmap
+plot_ld_myv <- ggplot(file, aes(x = Pos1_Mb, 
+                      y = Pos2_Mb, 
+                      fill = R2_Pearson)) +
+  geom_tile() +
+  scale_fill_gradientn(
+    colors = c( "yellow2", "red", "darkorchid4", "darkblue"),
+    na.value = "grey",
+    name = expression(R^2)
+  ) +
+theme_classic(16) +
+labs(
+    y = paste("Position (Mb)"), 
+    x = paste("Scaffold", unique(file$Chr),"position (Mb)")
+  ) +
+  scale_y_continuous(limits = c(minn/1e6, maxx/1e6), labels = label_number(accuracy = 0.01))+
+  scale_x_continuous(limits = c(minn/1e6, maxx/1e6),labels = label_number(accuracy = 0.01))+
+  theme(
+    legend.title = element_text(size = 9),  # Decrease legend title size
+    legend.text = element_text(size = 9),   # Decrease legend text size
+    legend.key.size = unit(0.3, "cm"),
+    axis.title.x = element_blank(),
+    axis.text.x = element_blank(),
+    legend.position = c(0.95, 0.45)
+    )
+
+
+ 
+
+#Thingvallavatn                   
+name="Thingvallavatn, Benthic vs. Pelagic"
+data = thin_gwas
+file = thin_ld
+
+#Set up bonferroni correction 
+  bonf_2 <- 0.00000001/nrow(data)
+  bonf_1 <- 0.01/nrow(data)
+  
+  plot_gwas_thin <- 
+    data[data$Chromosome == chr & data$Position >= minn &
+       data$Position <= maxx,] %>% 
+  ggplot() +
+  geom_point(aes(y = -log10(pvalue), x = Position/1000000), size = 1) +
+  theme_classic(16) +
+  theme(legend.position = 'none',
+        axis.title.x = element_blank(),
+        axis.text.x = element_blank()) +
+  labs(y ='-log10(P-value)', x = 'Position')+
+  annotate(geom = "rect", xmin = 18.36, xmax = 18.45, 
+           ymin = 0, ymax = 25,fill = "blue", alpha = 0.2)+
+  labs(subtitle = paste(name)) +
+  geom_hline(yintercept = -log10(bonf_1), linetype="dashed", color = "red", lwd=1.5 )+
+  geom_hline(yintercept = -log10(bonf_2), linetype="dashed", color = "blue", lwd=1.5 )+
+  scale_y_continuous(labels = label_number(accuracy = 0.01)) +
+  scale_x_continuous(
+    labels = label_number(accuracy = 0.01),
+    limits = c(minn/1e6, maxx/1e6)
+  ) 
+
+
+# Assign column names for clarity
+colnames(file) <- c("Pos1", "Pos2", "Distance", "R2_Pearson")
+
+# Clean Pos1 and Pos2 columns and extract the numeric positions
+file$Pos1_Mb <- as.numeric(gsub(".*:", "", file$Pos1))
+file$Pos2_Mb <- as.numeric(gsub(".*:", "", file$Pos2))
+
+file$Pos1_Mb <- round(file$Pos1_Mb/1e6,3)
+file$Pos2_Mb <- round(file$Pos2_Mb/1e6,3)
+
+# Extract chromosome numbers from Pos1
+file$Chr <- as.numeric(gsub(":.*", "", file$Pos1))
+
+# Replace any 'nan' or 'inf' values with NA for numerical columns
+file$R2_Pearson[file$R2_Pearson == "NaN" | file$R2_Pearson == "-NaN"] <- NA
+
+
+# Now, attempt to convert the columns to numeric values
+file$R2_Pearson <- as.numeric(file$R2_Pearson)
+file <- na.omit(file)
+
+# Create the heatmap
+plot_ld_thin <- ggplot(file, aes(x = Pos1_Mb, 
+                      y = Pos2_Mb, 
+                      fill = R2_Pearson)) +
+  geom_tile() +
+  scale_fill_gradientn(
+    colors = c( "yellow2", "red", "darkorchid4", "darkblue"),
+    na.value = "grey",
+    name = expression(R^2)
+  ) +
+theme_classic(16) +
+labs(
+    y = paste("Position (Mb)"), 
+    x = paste("Scaffold", unique(file$Chr),"position (Mb)")
+  ) +
+  scale_y_continuous(limits = c(minn/1e6, maxx/1e6), labels = label_number(accuracy = 0.01))+
+  scale_x_continuous(limits = c(minn/1e6, maxx/1e6),labels = label_number(accuracy = 0.01))+
+  theme(
+    legend.title = element_text(size = 9),  # Decrease legend title size
+    legend.text = element_text(size = 9),   # Decrease legend text size
+    legend.key.size = unit(0.3, "cm")) +
+  theme(
+    legend.position = c(0.95, 0.45),
+  )
+
+
+#Arrange all plots
+ggsave('~/Desktop/Comp_UU/REF_SalAlp_UK/GWAS/GWAS_34chr_zoom.png',ggarrange(
+  plot_gwas_myv,
+  plot_ld_myv, 
+  plot_gwas_thin,
+  plot_ld_thin,
+  nrow = 4, ncol = 1
+), width = 6,  height = 8, dpi = 300)
+
+ggsave('~/Desktop/Comp_UU/REF_SalAlp_UK/GWAS/GWAS_34chr_zoom.pdf',ggarrange(
+  plot_gwas_myv,
+  plot_ld_myv, 
+  plot_gwas_thin,
+  plot_ld_thin,
+  nrow = 4, ncol = 1
+), width = 6,  height = 8, dpi = 300)
+
+```
+
+
+#Nucleotide diversity summary stats
+```{r }
+#Libs
+library(tidyverse)
+library(patchwork)
+library(zoo)
+library(data.table)
+
+dir='~/Desktop/Comp_UU/REF_SalAlp_UK/Shared_regions'
+
+#Load data 
+files <- list.files(dir)
+
+desired <- grep('.theta.5kb.thetasWindow.gz.pestPG$',files, value = T)
+
+#Colnames
+col_names <- c('Chr',	'WinCenter',	'tW',	'tP',	'tF',	'tH',	'tL',	'Tajima', 'fuf', 'fud',	'fayh',	'zeng',	'nSites')
+
+
+# Read the desired files
+thetas_list <- list()
+
+for(file in desired) {
+  file_content <- read.table(file.path(dir, file), header = F)[,-1]
+  colnames(file_content) <- col_names
+  # Process the file content as needed
+  thetas_list[[file]] <- file_content
+}
+
+
+#Modify names of the data list 
+names(thetas_list) <- gsub(".theta.5kb.thetasWindow.gz.pestPG", '', names(thetas_list) )
+names(thetas_list)
+
+# Estimate Pi and Watterson’s theta  -------------------------------------------
+l.theta <- list()
+l.watt <- list()
+l.sum <- list()
+l.dfs <- list()
+
+for (pop in seq_along(thetas_list)){
+  df.theta <- thetas_list[[pop]]
+  pop.name <- names(thetas_list[pop])
+  l.theta[[pop.name]] <- mean((as.numeric(df.theta$tP) / as.numeric(df.theta$nSites)), na.rm = T)
+  l.watt[[pop.name]] <- mean((as.numeric(df.theta$tW) /as.numeric(df.theta$nSites)), na.rm = T)
+  l.sum[[pop.name]] <- sum(as.numeric(df.theta$nSites), na.rm = T)
+  df.theta$pop <- pop.name
+  l.dfs[[pop.name]] <- df.theta
+}
+
+length(l.theta) #as the number of populations
+length(l.watt)  #as the number of populations
+
+df.x2 <- data.frame(pop = names(l.theta),
+                    pairwise.nuc = round(unlist(l.theta), 4), 
+                    wattersons.theta = round(unlist(l.watt), 4),
+                    number.sites = round(unlist(l.sum), 4))
+
+mean.theta.nsites <- df.x2
+df.theta.nsites <- bind_rows(l.dfs)
+names(df.theta.nsites) <- c("Chr", "WinCenter","tW", "tP","tF","tH","tL","Tajima","fuf","fud","fayh","zeng","nSites", "pop")
+
+
+# cleaner summary ---------------------------------------------------------
+#always filter windows > 10 sites
+df.theta.nsites$nSites <- as.numeric(df.theta.nsites$nSites)
+df.theta.nsites$tP <- as.numeric(df.theta.nsites$tP)
+df.theta.nsites$tW <- as.numeric(df.theta.nsites$tW)
+
+# Plot nucleotide diversity-----------------------------------------------------
+df.theta.nsites_withPi <- df.theta.nsites
+df.theta.nsites_withPi$Pi <-round(df.theta.nsites_withPi$tP/df.theta.nsites_withPi$nSites, 4)
+df.theta.nsites_withPi <- df.theta.nsites_withPi[!is.na(df.theta.nsites_withPi$Pi),]
+
+
+#Use this data 
+df.theta.nsites$WinCenter <- as.numeric(df.theta.nsites$WinCenter)
+df.theta.nsites$WinCenter_less <- df.theta.nsites$WinCenter/1000000
+df.theta.nsites$tP_per_site <- df.theta.nsites$tP/df.theta.nsites$nSites
+
+#Clean data for the nSites , we are interested in nSites > 10
+df.theta.nsites_clean <- df.theta.nsites[ df.theta.nsites$nSites > 10, ]
+
+#Select for shared region only
+df.theta.nsites_clean_shared <- df.theta.nsites_clean[df.theta.nsites_clean$WinCenter_less > 18.36 & df.theta.nsites_clean$WinCenter_less < 18.45 ,]
+
+
+#Add summary statistics
+library(dplyr)
+
+summary_shar <- 
+  df.theta.nsites_clean_shared %>%
+  group_by(pop) %>%
+  summarise(mean_pi = round(mean(tP_per_site),4),
+            sd_pi = round(sd(tP_per_site),4))
+
+View(summary_shar)
+```
+
